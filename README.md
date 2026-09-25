@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SA Learner Logbook
 
-## Getting Started
+A digital replacement for the South Australian paper driving companion — logs supervised driving sessions, splits them into day and night hours, and tracks progress against the 75-hour licensing requirement.
 
-First, run the development server:
+Built as an offline-first PWA: learners log drives from the car, often with no signal, and sessions sync when the connection returns.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Why it exists
+
+SA learner drivers must record 75 hours of supervised driving (15 of them at night) in a paper logbook before applying for a provisional licence. Paper gets lost, arithmetic gets done wrong, and there's no way to see how far along you are without adding up columns by hand.
+
+## Features
+
+- **Session logging** with every field the official paper logbook captures — date, times, start and destination, weather, road and traffic conditions, supervising driver, and dual learner/supervisor confirmation.
+- **Automatic day/night split.** Sessions are broken down minute by minute, so a drive crossing the night boundary is apportioned correctly rather than counted wholly as one or the other.
+- **Progress tracking** against both the 75-hour total and the 15-hour night minimum.
+- **Supervisor register** — qualified supervising drivers with licence number, state, and relationship.
+- **SA suburb autocomplete** for start and destination fields.
+- **JSON export** of the full logbook (profile, supervisors, all sessions) for backup or migration.
+- **Offline-first PWA** — installable, works with no connection, syncs when back online.
+- **Account deletion** that cascades across all user data.
+
+## A note on correctness
+
+Every licensing figure lives in one place: [`src/lib/rules/sa-rules.ts`](src/lib/rules/sa-rules.ts). Nothing elsewhere in the app hard-codes a required-hours number or a night definition.
+
+Each rule carries a `verified` flag and a link to the official mylicence.sa.gov.au page it came from. Rules that could not be confirmed against an official source are marked `verified: false` and the app does not present them as legal requirements.
+
+The most significant of these: SA defines night as **sunset to sunrise**, which varies by date and location. The app currently approximates it with a fixed 7pm–6am window, and labels hours computed that way as an approximation. Replacing this with a real solar calculation is the main outstanding piece of work before the logbook could be relied on for an official submission.
+
+## Tech stack
+
+Next.js (App Router) · TypeScript · Supabase (Postgres + Auth, with row-level security) · Tailwind CSS · shadcn/ui · Zod · Serwist (service worker) · Vitest
+
+## Architecture
+
+```
+src/
+  app/(app)/        dashboard, drives, history, progress, supervisors, export, settings
+  features/         server actions and data access, grouped by domain
+  lib/rules/        SA licensing rules — single source of truth
+  lib/calculations/ day/night segmentation, progress math
+  lib/validation/   Zod schemas
+  lib/supabase/     browser, server, and proxy clients
+supabase/migrations/
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Domain logic is deliberately kept out of components. Day/night segmentation is implemented once, in `calculateDrivingSegments()`, and the dashboard, progress page, and drive form all call it rather than reimplementing the math.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Running locally
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Requires a Supabase project.
 
-## Learn More
+```bash
+npm install
+cp .env.local.example .env.local   # add your Supabase URL and anon key
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Apply the schema by running the files in `supabase/migrations/` against your project.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm test          # 32 tests across rules, calculations, and validation
+npm run build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Status
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Working MVP. Sunset/sunrise calculation and supervisor licence-duration validation are the known gaps — both are flagged in the rules module.
